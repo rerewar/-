@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎵 Играет</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #000; }
+    body { font-family: -apple-system, sans-serif; color: #fff; }
+
+    /* прячем нативный плеер */
+    audio { display: none !important; }
+
+    /* стартовый экран — исчезает навсегда */
+    #startScreen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, #1db954, #0d5c29);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #startScreen .icon { font-size: 20vh; line-height: 1; }
+    #startScreen .hint { font-size: 4vh; margin-top: 3vh; opacity: 0.9; }
+
+    /* экран "играет" */
+    #playScreen {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 50% 30%, #1db954 0%, #000 70%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #playScreen .pulse {
+      font-size: 22vh;
+      line-height: 1;
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%      { transform: scale(1.15); opacity: 0.8; }
+    }
+    #playScreen .now { margin-top: 4vh; font-size: 3vh; opacity: 0.7; }
+    #playScreen .title { font-size: 4vh; font-weight: bold; margin-top: 1vh; }
+    #playScreen .bar {
+      width: 70%;
+      height: 6px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px;
+      margin-top: 5vh;
+      overflow: hidden;
+    }
+    #playScreen .bar > div {
+      height: 100%;
+      width: 0;
+      background: #fff;
+      transition: width 0.2s linear;
+    }
+  </style>
+</head>
+<body>
+
+  <audio id="audio" src="https://files.catbox.moe/5qydor.mp3" loop preload="auto"></audio>
+
+  <!-- Стартовый экран: после клика удаляется из DOM -->
+  <div id="startScreen">
+    <div class="icon">▶</div>
+    <div class="hint">Нажми один раз</div>
+  </div>
+
+  <!-- Экран воспроизведения -->
+  <div id="playScreen">
+    <div class="pulse">🎵</div>
+    <div class="now">Сейчас играет</div>
+    <div class="title">Твоя песня</div>
+    <div class="bar"><div id="progress"></div></div>
+  </div>
+
+  <script>
+    const audio = document.getElementById('audio');
+    const startScreen = document.getElementById('startScreen');
+    const playScreen = document.getElementById('playScreen');
+    const progress = document.getElementById('progress');
+
+    let started = false; // защита от повторных кликов
+
+    // === СТАРТ (только один раз) ===
+    startScreen.addEventListener('click', function once() {
+      if (started) return;
+      started = true;
+
+      audio.play().then(() => {
+        // УДАЛЯЕМ стартовый экран из DOM — вернуть нельзя
+        startScreen.remove();
+
+        // показываем плеер
+        playScreen.style.display = 'flex';
+
+        // запускаем "сторож", который не даст остановить музыку
+        keepPlaying();
+      }).catch(err => {
+        started = false; // если не получилось — разрешаем попробовать снова
+        alert('Ошибка: ' + err.message);
+      });
+    });
+
+    // === СТОРОЖ: если кто-то поставит на паузу — включаем обратно ===
+    function keepPlaying() {
+      // 1. Если поставили на паузу — вернуть воспроизведение
+      audio.addEventListener('pause', () => {
+        audio.play().catch(()=>{});
+      });
+
+      // 2. Если перемотали — вернуть на исходную позицию (по желанию)
+      // audio.addEventListener('seeking', () => { audio.currentTime = 0; });
+
+      // 3. Если звук выключили — вернуть
+      audio.addEventListener('volumechange', () => {
+        if (audio.muted || audio.volume === 0) {
+          audio.muted = false;
+          audio.volume = 1;
+        }
+      });
+
+      // 4. Если кто-то пытается удалить/спрятать плеер
+      const guard = setInterval(() => {
+        if (audio.paused) audio.play().catch(()=>{});
+        if (playScreen.style.display === 'none') playScreen.style.display = 'flex';
+      }, 1000);
+    }
+
+    // Прогресс-бар
+    setInterval(() => {
+      if (audio.duration) {
+        progress.style.width = (audio.currentTime / audio.duration * 100) + '%';
+      }
+    }, 200);
+  </script>
+</body>
+</html>
