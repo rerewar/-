@@ -9,10 +9,10 @@
     html, body { height: 100%; overflow: hidden; background: #000; }
     body { font-family: -apple-system, sans-serif; color: #fff; }
 
-    /* прячем нативный плеер аудио */
+    /* прячем нативный плеер */
     audio { display: none !important; }
 
-    /* стартовая кнопка на весь экран */
+    /* стартовый экран — исчезает навсегда */
     #startScreen {
       position: fixed;
       inset: 0;
@@ -29,7 +29,7 @@
     #startScreen .icon { font-size: 20vh; line-height: 1; }
     #startScreen .hint { font-size: 4vh; margin-top: 3vh; opacity: 0.9; }
 
-    /* экран "играет" на весь экран */
+    /* экран "играет" */
     #playScreen {
       position: fixed;
       inset: 0;
@@ -38,7 +38,6 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
       z-index: 9;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
@@ -74,10 +73,10 @@
 
   <audio id="audio" src="https://files.catbox.moe/5qydor.mp3" loop preload="auto"></audio>
 
-  <!-- Стартовый экран -->
+  <!-- Стартовый экран: после клика удаляется из DOM -->
   <div id="startScreen">
     <div class="icon">▶</div>
-    <div class="hint">Нажми в любом месте</div>
+    <div class="hint">Нажми один раз</div>
   </div>
 
   <!-- Экран воспроизведения -->
@@ -86,7 +85,6 @@
     <div class="now">Сейчас играет</div>
     <div class="title">Твоя песня</div>
     <div class="bar"><div id="progress"></div></div>
-    <div class="now" style="margin-top:3vh;font-size:2.5vh;">Нажми, чтобы поставить на паузу</div>
   </div>
 
   <script>
@@ -95,21 +93,52 @@
     const playScreen = document.getElementById('playScreen');
     const progress = document.getElementById('progress');
 
-    // Старт
-    startScreen.addEventListener('click', () => {
+    let started = false; // защита от повторных кликов
+
+    // === СТАРТ (только один раз) ===
+    startScreen.addEventListener('click', function once() {
+      if (started) return;
+      started = true;
+
       audio.play().then(() => {
-        startScreen.style.display = 'none';
+        // УДАЛЯЕМ стартовый экран из DOM — вернуть нельзя
+        startScreen.remove();
+
+        // показываем плеер
         playScreen.style.display = 'flex';
+
+        // запускаем "сторож", который не даст остановить музыку
+        keepPlaying();
       }).catch(err => {
+        started = false; // если не получилось — разрешаем попробовать снова
         alert('Ошибка: ' + err.message);
       });
     });
 
-    // Пауза / продолжить
-    playScreen.addEventListener('click', () => {
-      if (audio.paused) audio.play();
-      else audio.pause();
-    });
+    // === СТОРОЖ: если кто-то поставит на паузу — включаем обратно ===
+    function keepPlaying() {
+      // 1. Если поставили на паузу — вернуть воспроизведение
+      audio.addEventListener('pause', () => {
+        audio.play().catch(()=>{});
+      });
+
+      // 2. Если перемотали — вернуть на исходную позицию (по желанию)
+      // audio.addEventListener('seeking', () => { audio.currentTime = 0; });
+
+      // 3. Если звук выключили — вернуть
+      audio.addEventListener('volumechange', () => {
+        if (audio.muted || audio.volume === 0) {
+          audio.muted = false;
+          audio.volume = 1;
+        }
+      });
+
+      // 4. Если кто-то пытается удалить/спрятать плеер
+      const guard = setInterval(() => {
+        if (audio.paused) audio.play().catch(()=>{});
+        if (playScreen.style.display === 'none') playScreen.style.display = 'flex';
+      }, 1000);
+    }
 
     // Прогресс-бар
     setInterval(() => {
