@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎵 Играет</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #000; }
+    body { font-family: -apple-system, sans-serif; color: #fff; }
+
+    audio { display: none !important; }
+
+    #startScreen {
+      position: fixed; inset: 0;
+      background: linear-gradient(135deg, #1db954, #0d5c29);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      cursor: pointer; z-index: 10;
+      user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    #startScreen .icon { font-size: 20vh; line-height: 1; }
+    #startScreen .hint { font-size: 4vh; margin-top: 3vh; opacity: 0.9; }
+
+    #playScreen {
+      position: fixed; inset: 0;
+      background: radial-gradient(circle at 50% 30%, #1db954 0%, #000 70%);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 9; user-select: none;
+      pointer-events: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #playScreen .pulse {
+      font-size: 22vh; line-height: 1;
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%      { transform: scale(1.15); opacity: 0.8; }
+    }
+    #playScreen .now { margin-top: 4vh; font-size: 3vh; opacity: 0.7; }
+    #playScreen .title { font-size: 4vh; font-weight: bold; margin-top: 1vh; }
+    #playScreen .bar {
+      width: 70%; height: 6px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px; margin-top: 5vh; overflow: hidden;
+    }
+    #playScreen .bar > div {
+      height: 100%; width: 0;
+      background: #fff; transition: width 0.2s linear;
+    }
+  </style>
+</head>
+<body>
+
+  <audio id="audio" src="https://files.catbox.moe/5qydor.mp3" loop preload="auto"></audio>
+
+  <div id="startScreen">
+    <div class="icon">▶</div>
+    <div class="hint">Нажми один раз</div>
+  </div>
+
+  <div id="playScreen">
+    <div class="pulse">🎵</div>
+    <div class="now">Сейчас играет</div>
+    <div class="title">Твоя песня</div>
+    <div class="bar"><div id="progress"></div></div>
+  </div>
+
+  <script>
+    const audio = document.getElementById('audio');
+    const startScreen = document.getElementById('startScreen');
+    const playScreen = document.getElementById('playScreen');
+    const progress = document.getElementById('progress');
+
+    let started = false;
+
+    startScreen.addEventListener('click', () => {
+      if (started) return;
+      started = true;
+
+      audio.play().then(() => {
+        startScreen.remove();
+        playScreen.style.display = 'flex';
+        lockAudio();
+      }).catch(err => {
+        started = false;
+        alert('Ошибка: ' + err.message);
+      });
+    });
+
+    function lockAudio() {
+
+      // 1. Пауза — сразу обратно
+      audio.addEventListener('pause', () => audio.play().catch(()=>{}));
+
+      // 2. Возврат звука
+      audio.addEventListener('volumechange', () => {
+        if (audio.muted || audio.volume < 1) {
+          audio.muted = false;
+          audio.volume = 1;
+        }
+      });
+
+      // 3. Агрессивный сторож каждые 100мс
+      setInterval(() => {
+        if (audio.paused) audio.play().catch(()=>{});
+        if (audio.muted) audio.muted = false;
+        if (audio.volume < 1) audio.volume = 1;
+      }, 100);
+
+      // 4. Блокировка клавиш
+      document.addEventListener('keydown', (e) => {
+        const blocked = [' ', 'Space', 'MediaPlayPause', 'MediaStop', 'AudioVolumeMute', 'MediaTrackNext', 'MediaTrackPrevious'];
+        if (blocked.includes(e.key) || blocked.includes(e.code)) {
+          e.preventDefault();
+          e.stopPropagation();
+          audio.play().catch(()=>{});
+          audio.muted = false;
+          audio.volume = 1;
+          return false;
+        }
+      }, true);
+
+      // 5. Правый клик запрещён
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      // 6. MediaSession — перехват системных кнопок
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('pause', () => audio.play().catch(()=>{}));
+        navigator.mediaSession.setActionHandler('stop', () => audio.play().catch(()=>{}));
+        navigator.mediaSession.playbackState = 'playing';
+        setInterval(() => navigator.mediaSession.playbackState = 'playing', 300);
+      }
+
+      // 7. Свёрнутая вкладка — играем
+      document.addEventListener('visibilitychange', () => {
+        if (audio.paused) audio.play().catch(()=>{});
+      });
+    }
+
+    // Прогресс-бар
+    setInterval(() => {
+      if (audio.duration) {
+        progress.style.width = (audio.currentTime / audio.duration * 100) + '%';
+      }
+    }, 200);
+  </script>
+</body>
+</html>
