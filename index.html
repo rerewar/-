@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎵 ЖМИ ЖМИ</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #000; }
+    body { font-family: 'Arial Black', sans-serif; color: #fff; }
+
+    audio { display: none !important; }
+
+    #startScreen {
+      position: fixed; inset: 0;
+      background: linear-gradient(160deg, #ffcc00 0%, #ff8800 45%, #cc4400 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      cursor: pointer; z-index: 10;
+      user-select: none; -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
+    }
+
+    #startScreen::before {
+      content: '';
+      position: absolute;
+      width: 140vh; height: 140vh;
+      background: radial-gradient(circle, rgba(255,255,255,0.5) 0%, transparent 60%);
+      animation: spin 6s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    #startScreen .btn-text {
+      font-size: 9vh;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 0 20px #ff4400, 4px 4px 0 #000, -2px -2px 0 #000;
+      letter-spacing: 1vh;
+      animation: pulseText 0.6s ease-in-out infinite alternate;
+      z-index: 2;
+      pointer-events: none;
+      margin-bottom: 3vh;
+    }
+    @keyframes pulseText {
+      from { transform: scale(1); }
+      to   { transform: scale(1.1); }
+    }
+
+    #startScreen .hint {
+      font-size: 3vh; font-weight: bold; color: #fff;
+      text-shadow: 2px 2px 0 #000; opacity: 0.9;
+      z-index: 2; pointer-events: none; margin-top: 3vh;
+    }
+
+    #startScreen .box {
+      width: 46vh; height: 46vh;
+      object-fit: contain;
+      filter: drop-shadow(0 0 40px rgba(255,255,255,0.9));
+      animation: bounce 0.8s ease-in-out infinite;
+      z-index: 2; pointer-events: none;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-2vh) scale(1.06); }
+    }
+
+    #playScreen {
+      position: fixed; inset: 0;
+      background: radial-gradient(circle at 50% 40%, #ff8800 0%, #1a0a00 75%);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 9; user-select: none;
+      pointer-events: none;
+      -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
+    }
+
+    #playScreen .now {
+      font-size: 3vh; font-weight: bold; color: #ffcc00;
+      text-shadow: 2px 2px 0 #000; margin-bottom: 1vh;
+    }
+    #playScreen .title {
+      font-size: 5vh; font-weight: 900; color: #fff;
+      text-shadow: 3px 3px 0 #000, 0 0 20px #ff4400;
+      margin-bottom: 2vh;
+    }
+    #playScreen .box {
+      width: 40vh; height: 40vh;
+      object-fit: contain;
+      filter: drop-shadow(0 0 50px #ffaa00);
+      animation: pulseBox 1.2s ease-in-out infinite;
+    }
+    @keyframes pulseBox {
+      0%, 100% { transform: scale(1) rotate(-3deg); }
+      50%      { transform: scale(1.12) rotate(3deg); }
+    }
+
+    #playScreen .bar {
+      width: 70%; height: 8px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 4px; margin-top: 3vh; overflow: hidden;
+      box-shadow: 0 0 10px #ff8800;
+    }
+    #playScreen .bar > div {
+      height: 100%; width: 0;
+      background: linear-gradient(90deg, #ffcc00, #ff4400);
+      transition: width 0.2s linear;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ТРЕК: РАБОЧАЯ ССЫЛКА CATBOX -->
+  <audio id="audio"
+         src="https://files.catbox.moe/2z4wcb.mp3"
+         loop preload="auto"></audio>
+
+  <div id="startScreen">
+    <div class="btn-text">ЖМИ ЖМИ</div>
+    <img class="box"
+         src="https://png.klev.club/uploads/posts/2024-04/png-klev-club-ij20-p-mega-yashchik-png-1.png"
+         alt="Мегаящик">
+    <div class="hint">нажми один раз, чтобы включить</div>
+  </div>
+
+  <div id="playScreen">
+    <div class="now">Сейчас играет</div>
+    <div class="title">🔥 ЖМИ ЖМИ 🔥</div>
+    <img class="box"
+         src="https://png.klev.club/uploads/posts/2024-04/png-klev-club-ij20-p-mega-yashchik-png-1.png"
+         alt="Мегаящик">
+    <div class="bar"><div id="progress"></div></div>
+  </div>
+
+  <script>
+    const audio = document.getElementById('audio');
+    const startScreen = document.getElementById('startScreen');
+    const playScreen = document.getElementById('playScreen');
+    const progress = document.getElementById('progress');
+
+    let started = false;
+
+    startScreen.addEventListener('click', () => {
+      if (started) return;
+      started = true;
+
+      audio.play().then(() => {
+        startScreen.remove();
+        playScreen.style.display = 'flex';
+        lockAudio();
+      }).catch(err => {
+        started = false;
+        alert('Ошибка загрузки трека: ' + err.message);
+      });
+    });
+
+    function lockAudio() {
+      audio.addEventListener('pause', () => audio.play().catch(()=>{}));
+      audio.addEventListener('volumechange', () => {
+        if (audio.muted || audio.volume < 1) {
+          audio.muted = false;
+          audio.volume = 1;
+        }
+      });
+
+      setInterval(() => {
+        if (audio.paused) audio.play().catch(()=>{});
+        if (audio.muted) audio.muted = false;
+        if (audio.volume < 1) audio.volume = 1;
+      }, 100);
+
+      document.addEventListener('keydown', (e) => {
+        const blocked = [' ', 'Space', 'MediaPlayPause', 'MediaStop', 'AudioVolumeMute', 'MediaTrackNext', 'MediaTrackPrevious'];
+        if (blocked.includes(e.key) || blocked.includes(e.code)) {
+          e.preventDefault();
+          e.stopPropagation();
+          audio.play().catch(()=>{});
+          audio.muted = false;
+          audio.volume = 1;
+        }
+      }, true);
+
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('pause', () => audio.play().catch(()=>{}));
+        navigator.mediaSession.setActionHandler('stop', () => audio.play().catch(()=>{}));
+        navigator.mediaSession.playbackState = 'playing';
+        setInterval(() => navigator.mediaSession.playbackState = 'playing', 300);
+      }
+
+      document.addEventListener('visibilitychange', () => {
+        if (audio.paused) audio.play().catch(()=>{});
+      });
+    }
+
+    setInterval(() => {
+      if (audio.duration) {
+        progress.style.width = (audio.currentTime / audio.duration * 100) + '%';
+      }
+    }, 200);
+  </script>
+</body>
+</html>
