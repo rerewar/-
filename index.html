@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>2D Танчики Онлайн</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK (загружается асинхронно с защитой от ошибок) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body {
+            font-family: 'Press Start 2P', cursive, monospace;
+            background-color: #050508;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .pixel-border {
+            border: 4px solid #fff;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2), inset -4px -4px 0px #444, inset 4px 4px 0px #ddd;
+        }
+        .pixel-btn {
+            box-shadow: inset -4px -4px 0px #111, inset 4px 4px 0px #aaa;
+            transition: all 0.05s ease;
+            cursor: pointer;
+        }
+        .pixel-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: inset -2px -2px 0px #111, inset 2px 2px 0px #aaa;
+        }
+        .dpad-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            touch-action: none;
+        }
+        .dpad-btn:active, .dpad-btn.active {
+            background: rgba(255, 215, 0, 0.6);
+            border-color: #ffd700;
+        }
+        .fire-btn {
+            background: radial-gradient(circle, #ff4d4d 0%, #990000 100%);
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(255, 0, 0, 0.5);
+        }
+        .fire-btn:active, .fire-btn.active {
+            transform: scale(0.95);
+            background: radial-gradient(circle, #ff8080 0%, #cc0000 100%);
+        }
+    </style>
+</head>
+<body class="p-1">
+
+    <!-- Верхняя панель со счетом -->
+    <div class="mb-2 w-full max-w-[500px] flex justify-between items-center px-2 text-[10px] sm:text-xs">
+        <div class="text-yellow-400">СЧЕТ: <span id="score-val" class="text-white">0</span></div>
+        <div class="text-red-500">ЖИЗНИ: <span id="lives-val" class="text-white">❤❤❤</span></div>
+        <div class="text-cyan-400">ВРАГИ: <span id="enemies-val" class="text-white">10</span></div>
+    </div>
+
+    <!-- Контейнер игры -->
+    <div class="relative flex flex-col items-center">
+        <!-- Canvas игры -->
+        <canvas id="gameCanvas" width="500" height="500" class="pixel-border bg-black rounded"></canvas>
+
+        <!-- Оверлей Меню -->
+        <div id="menu-overlay" class="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-20">
+            <h1 class="text-2xl sm:text-3xl text-yellow-400 mb-2 font-bold tracking-wider text-center drop-shadow-[0_4px_0_#990000]">
+                ТАНЧИКИ 2D
+            </h1>
+            <p class="text-[10px] text-gray-400 mb-6 tracking-widest text-center">BATTLE CITY RETRO</p>
+
+            <div class="w-full max-w-xs space-y-3">
+                <button id="btn-single" class="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold pixel-btn text-xs tracking-wider">
+                    ОДИНОЧНАЯ ИГРА
+                </button>
+                <button id="btn-multi" class="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold pixel-btn text-xs tracking-wider">
+                    МУЛЬТИПЛЕЕР (ОНЛАЙН)
+                </button>
+                <button id="btn-help" class="w-full py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold pixel-btn text-[10px]">
+                    СПРАВКА И УПРАВЛЕНИЕ
+                </button>
+            </div>
+
+            <!-- Селектор карты -->
+            <div class="mt-5 w-full max-w-xs">
+                <label class="block text-[10px] text-gray-400 mb-1 text-center">ВЫБОР КАРТЫ:</label>
+                <select id="map-select" class="w-full bg-gray-800 text-yellow-300 text-[10px] p-2 rounded border border-gray-600 text-center cursor-pointer font-mono">
+                    <option value="0">1. КЛАССИКА</option>
+                    <option value="1">2. ЛАБИРИНТ</option>
+                    <option value="2">3. ПЕРЕПРАВА (ВОДА)</option>
+                    <option value="3">4. ЗАСАДА (ЛЕС)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Оверлей Сетевого Лобби -->
+        <div id="lobby-overlay" class="hidden absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-25">
+            <h2 class="text-lg text-green-400 mb-4 font-bold text-center">ОНЛАЙН ЛОББИ</h2>
+            <div class="w-full max-w-xs space-y-3">
+                <input type="text" id="room-input" placeholder="КОД КОМНАТЫ (1234)" maxlength="8"
+                       class="w-full bg-gray-900 border-2 border-green-500 text-center text-yellow-300 p-2 text-xs uppercase focus:outline-none rounded">
+                <div class="flex space-x-2">
+                    <button id="btn-join-room" class="flex-1 py-2 bg-green-600 hover:bg-green-500 text-white font-bold pixel-btn text-[10px]">
+                        ВОЙТИ
+                    </button>
+                    <button id="btn-create-room" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold pixel-btn text-[10px]">
+                        СОЗДАТЬ
+                    </button>
+                </div>
+                <div id="lobby-status" class="text-[9px] text-yellow-400 text-center min-h-[16px]"></div>
+                <button id="btn-back-lobby" class="w-full py-2 bg-red-700 hover:bg-red-600 text-white font-bold pixel-btn text-[10px] mt-4">
+                    НАЗАД В МЕНЮ
+                </button>
+            </div>
+        </div>
+
+        <!-- Оверлей Справки -->
+        <div id="help-overlay" class="hidden absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-25 text-left">
+            <h2 class="text-sm text-yellow-400 mb-3 font-bold text-center">СПРАВКА ПО ИГРЕ</h2>
+            <div class="text-[9px] text-gray-300 space-y-2 leading-relaxed max-w-xs">
+                <p><span class="text-green-400">Управление ПК:</span> Движение WASD или Стрелки, Выстрел — Пробел.</p>
+                <p><span class="text-green-400">Управление Мобильное:</span> Используйте сенсорный D-Pad слева и красную кнопку "ОГОНЬ" справа.</p>
+                <p><span class="text-red-400">Штаб (Орел):</span> Защищайте свой Штаб внизу карты! При его уничтожении игра окончена.</p>
+                <p><span class="text-yellow-400">Блоки:</span> Кирпич разрушается, Бетон прочен, Вода непроходима, Кусты скрывают танк.</p>
+            </div>
+            <button id="btn-close-help" class="mt-4 px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold pixel-btn text-[10px]">
+                ПОНЯТНО
+            </button>
+        </div>
+
+        <!-- Оверлей Конец Игры -->
+        <div id="gameover-overlay" class="hidden absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-30">
+            <h2 id="gameover-title" class="text-2xl text-red-600 mb-2 font-bold tracking-widest animate-pulse">GAME OVER</h2>
+            <p id="gameover-score" class="text-yellow-400 text-xs mb-6">СЧЕТ: 0</p>
+            <button id="btn-restart" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold pixel-btn text-xs">
+                В ГЛАВНОЕ МЕНЮ
+            </button>
+        </div>
+    </div>
+
+    <!-- Сенсорный интерфейс управления для мобильных -->
+    <div id="touch-controls" class="mt-3 w-full max-w-[500px] flex justify-between items-center px-2">
+        <!-- D-Pad -->
+        <div class="relative w-32 h-32">
+            <div id="btn-up" class="dpad-btn absolute top-0 left-11 w-10 h-10">▲</div>
+            <div id="btn-down" class="dpad-btn absolute bottom-0 left-11 w-10 h-10">▼</div>
+            <div id="btn-left" class="dpad-btn absolute top-11 left-0 w-10 h-10">◄</div>
+            <div id="btn-right" class="dpad-btn absolute top-11 right-0 w-10 h-10">►</div>
+            <div class="absolute top-11 left-11 w-10 h-10 bg-gray-800/50 rounded-md pointer-events-none"></div>
+        </div>
+
+        <!-- Кнопка Огонь -->
+        <div class="flex items-center justify-center pr-2">
+            <div id="btn-fire" class="fire-btn w-20 h-20 flex items-center justify-center font-bold text-white text-[10px] tracking-wider">
+                ОГОНЬ
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Web Audio API Синтезатор Звуков ---
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioCtx();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'shoot') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(80, now + 0.1);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'explosion') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.linearRampToValueAtTime(30, now + 0.25);
+                    gain.gain.setValueAtTime(0.5, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'hit') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(200, now);
+                    osc.frequency.linearRampToValueAtTime(50, now + 0.08);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        // --- Константы Настройки Игры ---
+        const GRID_SIZE = 20;
+        const CANVAS_SIZE = 500;
+        const TILE_SIZE = CANVAS_SIZE / GRID_SIZE; // 25px
+
+        // Типы блоков
+        const TILE = { EMPTY: 0, BRICK: 1, STEEL: 2, WATER: 3, FOREST: 4, EAGLE: 5 };
+        // Направления
+        const DIR = { UP: 0, RIGHT: 1, DOWN: 2, LEFT: 3 };
+
+        // --- Карты (20x20) ---
+        const MAPS = [
+            // 1. Классика
+            [
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,0],
+                [0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,0],
+                [0,1,1,0,1,1,0,1,1,2,2,1,1,0,1,1,0,1,1,0,0],
+                [0,1,1,0,1,1,0,1,1,2,2,1,1,0,1,1,0,1,1,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,0,2,2,0,1,1,1,1,1,1,0,2,2,0,1,1,0],
+                [0,1,1,0,2,2,0,1,1,1,1,1,1,0,2,2,0,1,1,0],
+                [0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0],
+                [1,1,0,1,1,1,1,0,0,2,2,0,0,1,1,1,1,0,1,1],
+                [1,1,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,1,1],
+                [0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0],
+                [0,1,1,0,1,1,0,0,1,1,1,1,0,0,1,1,0,1,1,0],
+                [0,1,1,0,1,1,0,0,0,0,0,0,0,0,1,1,0,1,1,0],
+                [0,1,1,0,1,1,0,2,2,2,2,2,2,0,1,1,0,1,1,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,0,1,1,0,0,1,1,1,1,0,0,1,1,0,1,1,0],
+                [0,1,1,0,1,1,0,1,1,1,1,1,1,0,1,1,0,1,1,0],
+                [0,0,0,0,0,0,0,1,1,5,5,1,1,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,1,1,5,5,1,1,0,0,0,0,0,0,0]
+            ],
+            // 2. Лабиринт
+            [
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,2,2,2,2,2,2,2,0,1,1,0,2,2,2,2,2,2,0,0],
+                [0,2,0,0,0,0,0,2,0,1,1,0,2,0,0,0,0,2,0,0],
+                [0,2,0,1,1,1,0,2,0,0,0,0,2,0,1,1,0,2,0,0],
+                [0,2,0,1,2,1,0,2,2,2,2,0,2,0,1,2,0,2,0,0],
+                [0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0],
+                [2,2,2,0,2,0,2,2,1,1,1,1,2,2,0,2,0,2,2,2],
+                [0,0,0,0,0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,0],
+                [0,1,1,1,1,0,2,0,2,2,2,2,0,2,0,1,1,1,1,0],
+                [0,1,2,2,1,0,0,0,2,0,0,2,0,0,0,1,2,2,1,0],
+                [0,1,2,2,1,0,0,0,2,0,0,2,0,0,0,1,2,2,1,0],
+                [0,1,1,1,1,0,2,0,2,2,2,2,0,2,0,1,1,1,1,0],
+                [0,0,0,0,0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,0],
+                [2,2,2,0,2,0,2,2,1,1,1,1,2,2,0,2,0,2,2,2],
+                [0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0],
+                [0,2,0,1,2,1,0,2,2,2,2,0,2,0,1,2,0,2,0,0],
+                [0,2,0,1,1,1,0,2,0,0,0,0,2,0,1,1,0,2,0,0],
+                [0,2,0,0,0,0,0,2,0,1,1,0,2,0,0,0,0,2,0,0],
+                [0,2,2,2,2,2,2,2,1,5,5,1,2,2,2,2,2,2,0,0],
+                [0,0,0,0,0,0,0,0,1,5,5,1,0,0,0,0,0,0,0,0]
+            ],
+            // 3. Переправа (Вода)
+            [
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1,1,0],
+                [0,1,1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1,1,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [3,3,3,3,0,0,3,3,3,3,3,3,3,3,0,0,3,3,3,3],
+                [3,3,3,3,0,0,3,3,3,3,3,3,3,3,0,0,3,3,3,3],
+                [0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0],
+                [0,1,1,0,2,2,0,1,1,1,1,1,1,0,2,2,0,1,1,0],
+                [0,1,1,0,2,2,0,1,1,1,1,1,1,0,2,2,0,1,1,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [3,3,3,3,3,3,0,0,3,3,3,3,0,0,3,3,3,3,3,3],
+                [3,3,3,3,3,3,0,0,3,3,3,3,0,0,3,3,3,3,3,3],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,0,1,1,0,2,2,2,2,2,2,0,1,1,0,1,1,0],
+                [0,1,1,0,1,1,0,0,0,0,0,0,0,0,1,1,0,1,1,0],
+                [0,1,1,0,1,1,0,1,1,1,1,1,1,0,1,1,0,1,1,0],
+                [0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,1,1,5,5,1,1,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,1,1,5,5,1,1,0,0,0,0,0,0,0]
+            ],
+            // 4. Засада (Лес)
+            [
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,4,4,4,1,1,4,4,4,0,0,4,4,4,1,1,4,4,4,0],
+                [0,4,4,4,1,1,4,4,4,0,0,4,4,4,1,1,4,4,4,0],
+                [0,4,4,4,0,0,4,4,4,2,2,4,4,4,0,0,4,4,4,0],
+                [0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0],
+                [4,4,0,1,1,1,1,0,4,4,4,4,0,1,1,1,1,0,4,4],
+                [4,4,0,1,1,1,1,0,4,4,4,4,0,1,1,1,1,0,4,4],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,4,4,4,4,1,1,0,0,1,1,4,4,4,4,1,1,0],
+                [0,1,1,4,4,4,4,1,1,0,0,1,1,4,4,4,4,1,1,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [4,4,0,2,2,2,2,0,4,4,4,4,0,2,2,2,2,0,4,4],
+                [4,4,0,2,2,2,2,0,4,4,4,4,0,2,2,2,2,0,4,4],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,0,4,4,4,4,1,1,1,1,4,4,4,4,0,1,1,0],
+                [0,1,1,0,4,4,4,4,1,1,1,1,4,4,4,4,0,1,1,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,1,1,5,5,1,1,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,1,1,5,5,1,1,0,0,0,0,0,0,0]
+            ]
+        ];
+
+        // --- Переменные Состояния Игры ---
+        let canvas, ctx;
+        let map = [];
+        let player1 = null, player2 = null;
+        let bots = [];
+        let bullets = [];
+        let explosions = [];
+
+        let score = 0;
+        let lives = 3;
+        let remainingEnemies = 10;
+        let spawnTimer = 0;
+        let gameOver = false;
+        let isMultiplayer = false;
+        let gameMode = 1; // 1 = P1, 2 = P2 / Co-op
+
+        // Состояние кнопок ввода
+        const keys = {
+            up: false, down: false, left: false, right: false, fire: false,
+            up2: false, down2: false, left2: false, right2: false, fire2: false
+        };
+
+        // --- Классы Объектов ---
+
+        // Класс Снаряда
+        class Bullet {
+            constructor(x, y, dir, isEnemy, owner) {
+                this.x = x;
+                this.y = y;
+                this.dir = dir;
+                this.speed = 5;
+                this.isEnemy = isEnemy;
+                this.owner = owner;
+                this.radius = 3;
+                this.active = true;
+            }
+
+            update() {
+                if (!this.active) return;
+
+                if (this.dir === DIR.UP) this.y -= this.speed;
+                else if (this.dir === DIR.RIGHT) this.x += this.speed;
+                else if (this.dir === DIR.DOWN) this.y += this.speed;
+                else if (this.dir === DIR.LEFT) this.x -= this.speed;
+
+                // Границы карты
+                if (this.x < 0 || this.x > CANVAS_SIZE || this.y < 0 || this.y > CANVAS_SIZE) {
+                    this.active = false;
+                    explosions.push(new Explosion(this.x, this.y, false));
+                    return;
+                }
+
+                // Столкновение с блоками сетки
+                const gridX = Math.floor(this.x / TILE_SIZE);
+                const gridY = Math.floor(this.y / TILE_SIZE);
+
+                if (gridX >= 0 && gridX < GRID_SIZE && gridY >= 0 && gridY < GRID_SIZE) {
+                    const tile = map[gridY][gridX];
+
+                    if (tile === TILE.BRICK) {
+                        map[gridY][gridX] = TILE.EMPTY;
+                        this.active = false;
+                        playSound('hit');
+                        explosions.push(new Explosion(this.x, this.y, false));
+                        return;
+                    } else if (tile === TILE.STEEL) {
+                        this.active = false;
+                        playSound('hit');
+                        explosions.push(new Explosion(this.x, this.y, false));
+                        return;
+                    } else if (tile === TILE.EAGLE) {
+                        map[gridY][gridX] = TILE.EMPTY;
+                        this.active = false;
+                        playSound('explosion');
+                        explosions.push(new Explosion(this.x, this.y, true));
+                        endGame(false, "ВАШ ШТАБ УНИЧТОЖЕН!");
+                        return;
+                    }
+                }
+
+                // Столкновение с игроком
+                [player1, player2].forEach(p => {
+                    if (p && p.active && this.isEnemy) {
+                        if (Math.abs(this.x - (p.x + TILE_SIZE/2)) < TILE_SIZE/2 &&
+                            Math.abs(this.y - (p.y + TILE_SIZE/2)) < TILE_SIZE/2) {
+                            this.active = false;
+                            p.hit();
+                        }
+                    }
+                });
+
+                // Столкновение с ботами
+                if (!this.isEnemy) {
+                    bots.forEach(b => {
+                        if (b.active) {
+                            if (Math.abs(this.x - (b.x + TILE_SIZE/2)) < TILE_SIZE/2 &&
+                                Math.abs(this.y - (b.y + TILE_SIZE/2)) < TILE_SIZE/2) {
+                                this.active = false;
+                                b.hit();
+                            }
+                        }
+                    });
+                }
+            }
+
+            draw() {
+                if (!this.active) return;
+                ctx.fillStyle = this.isEnemy ? '#ff3333' : '#ffff33';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Класс Взрыва
+        class Explosion {
+            constructor(x, y, isBig = false) {
+                this.x = x;
+                this.y = y;
+                this.isBig = isBig;
+                this.radius = 2;
+                this.maxRadius = isBig ? 20 : 8;
+                this.active = true;
+            }
+
+            update() {
+                this.radius += 1.5;
+                if (this.radius > this.maxRadius) this.active = false;
+            }
+
+            draw() {
+                if (!this.active) return;
+                ctx.fillStyle = this.radius > this.maxRadius / 2 ? '#ff6600' : '#ffff00';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Базовый Танк
+        class Tank {
+            constructor(x, y, color, isEnemy = false) {
+                this.x = x;
+                this.y = y;
+                this.width = TILE_SIZE - 2;
+                this.height = TILE_SIZE - 2;
+                this.color = color;
+                this.dir = DIR.UP;
+                this.speed = 1.8;
+                this.isEnemy = isEnemy;
+                this.active = true;
+                this.cooldown = 0;
+                this.hp = 1;
+            }
+
+            move(dir) {
+                this.dir = dir;
+                let nextX = this.x;
+                let nextY = this.y;
+
+                if (dir === DIR.UP) nextY -= this.speed;
+                else if (dir === DIR.RIGHT) nextX += this.speed;
+                else if (dir === DIR.DOWN) nextY += this.speed;
+                else if (dir === DIR.LEFT) nextX -= this.speed;
+
+                if (this.canMoveTo(nextX, nextY)) {
+                    this.x = nextX;
+                    this.y = nextY;
+                    return true;
+                } else {
+                    // Выравнивание по сетке для удобства поворота
+                    if (dir === DIR.UP || dir === DIR.DOWN) {
+                        this.x = Math.round(this.x / (TILE_SIZE / 2)) * (TILE_SIZE / 2);
+                    } else {
+                        this.y = Math.round(this.y / (TILE_SIZE / 2)) * (TILE_SIZE / 2);
+                    }
+                    return false;
+                }
+            }
+
+            canMoveTo(x, y) {
+                if (x < 0 || x + this.width > CANVAS_SIZE || y < 0 || y + this.height > CANVAS_SIZE) return false;
+
+                // Проверка 4 углов танка
+                const corners = [
+                    { x: x + 1, y: y + 1 },
+                    { x: x + this.width - 1, y: y + 1 },
+                    { x: x + 1, y: y + this.height - 1 },
+                    { x: x + this.width - 1, y: y + this.height - 1 }
+                ];
+
+                for (let c of corners) {
+                    const gx = Math.floor(c.x / TILE_SIZE);
+                    const gy = Math.floor(c.y / TILE_SIZE);
+                    if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
+                        const tile = map[gy][gx];
+                        if (tile === TILE.BRICK || tile === TILE.STEEL || tile === TILE.WATER || tile === TILE.EAGLE) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            shoot() {
+                if (this.cooldown > 0) return;
+                this.cooldown = 20;
+
+                let bx = this.x + this.width / 2;
+                let by = this.y + this.height / 2;
+
+                if (this.dir === DIR.UP) by -= this.height / 2;
+                else if (this.dir === DIR.RIGHT) bx += this.width / 2;
+                else if (this.dir === DIR.DOWN) by += this.height / 2;
+                else if (this.dir === DIR.LEFT) bx -= this.width / 2;
+
+                bullets.push(new Bullet(bx, by, this.dir, this.isEnemy, this));
+                playSound('shoot');
+            }
+
+            update() {
+                if (this.cooldown > 0) this.cooldown--;
+            }
+
+            draw() {
+                if (!this.active) return;
+
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                ctx.rotate((this.dir * 90 * Math.PI) / 180);
+
+                // Гусеницы
+                ctx.fillStyle = '#333';
+                ctx.fillRect(-this.width / 2, -this.height / 2, 4, this.height);
+                ctx.fillRect(this.width / 2 - 4, -this.height / 2, 4, this.height);
+
+                // Корпус
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.width / 2 + 4, -this.height / 2 + 2, this.width - 8, this.height - 4);
+
+                // Башня
+                ctx.fillStyle = '#111';
+                ctx.beginPath();
+                ctx.arc(0, 0, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Ствол
+                ctx.fillStyle = '#000';
+                ctx.fillRect(-2, -this.height / 2 - 2, 4, 10);
+
+                ctx.restore();
+            }
+        }
+
+        // Игрок
+        class Player extends Tank {
+            constructor(x, y, color) {
+                super(x, y, color, false);
+            }
+
+            hit() {
+                lives--;
+                playSound('explosion');
+                explosions.push(new Explosion(this.x, this.y, true));
+                document.getElementById('lives-val').textContent = '❤'.repeat(Math.max(0, lives));
+
+                if (lives <= 0) {
+                    this.active = false;
+                    endGame(false, "ВАШИ ТАНКИ УНИЧТОЖЕНЫ!");
+                } else {
+                    // Спавн на безопасное место
+                    this.x = TILE_SIZE * 7;
+                    this.y = TILE_SIZE * 18;
+                }
+            }
+        }
+
+        // HIGH IQ Бот с ИИ
+        class SmartBot extends Tank {
+            constructor(x, y, type) {
+                // Типы: 'hunter', 'assaulter', 'patrol'
+                let color = '#d97706'; // Обычный
+                if (type === 'hunter') color = '#dc2626'; // Охотник (Красный)
+                if (type === 'assaulter') color = '#9333ea'; // Штурмовик (Фиолетовый)
+
+                super(x, y, color, true);
+                this.type = type;
+                this.hp = type === 'assaulter' ? 2 : 1;
+                this.speed = type === 'hunter' ? 2.0 : 1.4;
+
+                this.stuckTimer = 0;
+                this.lastX = x;
+                this.lastY = y;
+
+                this.changeDirTimer = 0;
+                this.targetDir = DIR.DOWN;
+            }
+
+            updateAI() {
+                if (!this.active) return;
+                super.update();
+
+                // Проверка застревания (Unstick system)
+                if (Math.abs(this.x - this.lastX) < 0.2 && Math.abs(this.y - this.lastY) < 0.2) {
+                    this.stuckTimer++;
+                } else {
+                    this.stuckTimer = 0;
+                }
+                this.lastX = this.x;
+                this.lastY = this.y;
+
+                // Смена направления при застревании
+                if (this.stuckTimer > 15) {
+                    this.targetDir = Math.floor(Math.random() * 4);
+                    this.stuckTimer = 0;
+                    this.changeDirTimer = 40;
+                }
+
+                // Периодическое планирование поведения
+                this.changeDirTimer--;
+                if (this.changeDirTimer <= 0) {
+                    this.changeDirTimer = 60 + Math.floor(Math.random() * 40);
+                    this.decideDirection();
+                }
+
+                // Движение
+                const moved = this.move(this.targetDir);
+                if (!moved) {
+                    // Если уперся в стенку — сразу выбери другое направление
+                    this.targetDir = Math.floor(Math.random() * 4);
+                }
+
+                // Прицельный огонь (Raycasting)
+                if (this.hasLineOfSight()) {
+                    this.shoot();
+                }
+            }
+
+            decideDirection() {
+                let targetX = TILE_SIZE * 9.5; // Координата штаба
+                let targetY = TILE_SIZE * 18.5;
+
+                if (this.type === 'hunter' && player1 && player1.active) {
+                    targetX = player1.x;
+                    targetY = player1.y;
+                }
+
+                // Манхэттенское оценивание направления
+                const dx = targetX - this.x;
+                const dy = targetY - this.y;
+
+                let preferredDirs = [];
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    preferredDirs.push(dx > 0 ? DIR.RIGHT : DIR.LEFT);
+                    preferredDirs.push(dy > 0 ? DIR.DOWN : DIR.UP);
+                } else {
+                    preferredDirs.push(dy > 0 ? DIR.DOWN : DIR.UP);
+                    preferredDirs.push(dx > 0 ? DIR.RIGHT : DIR.LEFT);
+                }
+
+                // С вероятностью 70% выбираем оптимальный путь, 30% случайный (для естественности)
+                if (Math.random() < 0.7 && preferredDirs.length > 0) {
+                    this.targetDir = preferredDirs[0];
+                } else {
+                    this.targetDir = Math.floor(Math.random() * 4);
+                }
+            }
+
+            hasLineOfSight() {
+                // Проверка луча перед стволом на наличие игрока или штаба
+                let checkX = this.x + this.width / 2;
+                let checkY = this.y + this.height / 2;
+
+                for (let i = 0; i < 6; i++) {
+                    if (this.dir === DIR.UP) checkY -= TILE_SIZE;
+                    else if (this.dir === DIR.RIGHT) checkX += TILE_SIZE;
+                    else if (this.dir === DIR.DOWN) checkY += TILE_SIZE;
+                    else if (this.dir === DIR.LEFT) checkX -= TILE_SIZE;
+
+                    const gx = Math.floor(checkX / TILE_SIZE);
+                    const gy = Math.floor(checkY / TILE_SIZE);
+
+                    if (gx < 0 || gx >= GRID_SIZE || gy < 0 || gy >= GRID_SIZE) break;
+
+                    const tile = map[gy][gx];
+                    if (tile === TILE.STEEL) break; // Бетон блокирует видимость
+                    if (tile === TILE.BRICK || tile === TILE.EAGLE) return true; // Выстрел по стене или штабу
+
+                    // Проверка игрока на линии
+                    if (player1 && player1.active) {
+                        if (Math.abs(checkX - (player1.x + TILE_SIZE/2)) < TILE_SIZE &&
+                            Math.abs(checkY - (player1.y + TILE_SIZE/2)) < TILE_SIZE) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            hit() {
+                this.hp--;
+                if (this.hp <= 0) {
+                    this.active = false;
+                    playSound('explosion');
+                    explosions.push(new Explosion(this.x, this.y, true));
+                    score += 100;
+                    document.getElementById('score-val').textContent = score;
+                } else {
+                    playSound('hit');
+                    this.color = '#581c87'; // Потемнение при уроне
+                }
+            }
+        }
+
+        // --- Функция Очистки Спавна (Zero-Block Spawn) ---
+        function clearSpawnArea(startCol, startRow, width = 3, height = 3) {
+            for (let r = startRow; r < startRow + height; r++) {
+                for (let c = startCol; c < startCol + width; c++) {
+                    if (r >= 0 && r < GRID_SIZE && c >= 0 && c < GRID_SIZE) {
+                        map[r][c] = TILE.EMPTY;
+                    }
+                }
+            }
+        }
+
+        // --- Инициализация Игры ---
+        function initGame(selectedMapIndex) {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+
+            // Клонирование карты из шаблона
+            map = JSON.parse(JSON.stringify(MAPS[selectedMapIndex]));
+
+            // Очистка спавнов игроков и ботов от блоков
+            clearSpawnArea(6, 17, 4, 3);  // Игрок 1 и 2
+            clearSpawnArea(0, 0, 3, 3);   // Бот Спавн 1
+            clearSpawnArea(8, 0, 4, 3);   // Бот Спавн 2
+            clearSpawnArea(17, 0, 3, 3);  // Бот Спавн 3
+
+            player1 = new Player(TILE_SIZE * 7, TILE_SIZE * 18, '#22c55e'); // Зеленый
+            if (gameMode === 2) {
+                player2 = new Player(TILE_SIZE * 11, TILE_SIZE * 18, '#3b82f6'); // Синий
+            } else {
+                player2 = null;
+            }
+
+            bots = [];
+            bullets = [];
+            explosions = [];
+            score = 0;
+            lives = 3;
+            remainingEnemies = 10;
+            spawnTimer = 0;
+            gameOver = false;
+
+            document.getElementById('score-val').textContent = score;
+            document.getElementById('lives-val').textContent = '❤'.repeat(lives);
+            document.getElementById('enemies-val').textContent = remainingEnemies;
+        }
+
+        function spawnBot() {
+            if (remainingEnemies <= 0 || bots.filter(b => b.active).length >= 4) return;
+
+            const spawnPoints = [
+                { x: TILE_SIZE * 1, y: TILE_SIZE * 1 },
+                { x: TILE_SIZE * 9, y: TILE_SIZE * 1 },
+                { x: TILE_SIZE * 18, y: TILE_SIZE * 1 }
+            ];
+
+            const pt = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+            const types = ['hunter', 'assaulter', 'patrol'];
+            const type = types[Math.floor(Math.random() * types.length)];
+
+            bots.push(new SmartBot(pt.x, pt.y, type));
+            remainingEnemies--;
+            document.getElementById('enemies-val').textContent = remainingEnemies;
+        }
+
+        // --- Игровой Цикл ---
+        function gameLoop() {
+            if (!gameOver) {
+                update();
+                render();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function update() {
+            // Спавн ботов
+            spawnTimer++;
+            if (spawnTimer > 120) {
+                spawnBot();
+                spawnTimer = 0;
+            }
+
+            // Управление Игрока 1
+            if (player1 && player1.active) {
+                player1.update();
+                if (keys.up) player1.move(DIR.UP);
+                else if (keys.right) player1.move(DIR.RIGHT);
+                else if (keys.down) player1.move(DIR.DOWN);
+                else if (keys.left) player1.move(DIR.LEFT);
+
+                if (keys.fire) player1.shoot();
+            }
+
+            // Обновление ботов
+            bots.forEach(b => {
+                if (b.active) b.updateAI();
+            });
+
+            // Обновление снарядов
+            bullets.forEach(b => b.update());
+            bullets = bullets.filter(b => b.active);
+
+            // Обновление взрывов
+            explosions.forEach(e => e.update());
+            explosions = explosions.filter(e => e.active);
+
+            // Проверка победы
+            if (remainingEnemies <= 0 && bots.filter(b => b.active).length === 0) {
+                endGame(true, "ПОБЕДА! ВСЕ ВРАГИ УНИЧТОЖЕНЫ!");
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            // Отрисовка карты
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const tile = map[r][c];
+                    const x = c * TILE_SIZE;
+                    const y = r * TILE_SIZE;
+
+                    if (tile === TILE.BRICK) {
+                        ctx.fillStyle = '#b91c1c';
+                        ctx.fillRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+                        ctx.fillStyle = '#7f1d1d';
+                        ctx.fillRect(x + 3, y + 3, TILE_SIZE - 6, 4);
+                    } else if (tile === TILE.STEEL) {
+                        ctx.fillStyle = '#9ca3af';
+                        ctx.fillRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+                        ctx.fillStyle = '#e5e7eb';
+                        ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                    } else if (tile === TILE.WATER) {
+                        ctx.fillStyle = '#2563eb';
+                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    } else if (tile === TILE.EAGLE) {
+                        ctx.fillStyle = '#f59e0b';
+                        ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                        ctx.fillStyle = '#000';
+                        ctx.font = '12px sans-serif';
+                        ctx.fillText('🦅', x + 4, y + 18);
+                    }
+                }
+            }
+
+            // Отрисовка объектов
+            if (player1) player1.draw();
+            if (player2) player2.draw();
+            bots.forEach(b => b.draw());
+            bullets.forEach(b => b.draw());
+            explosions.forEach(e => e.draw());
+
+            // Отрисовка Кустов (поверх танков)
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    if (map[r][c] === TILE.FOREST) {
+                        ctx.fillStyle = 'rgba(22, 101, 52, 0.85)';
+                        ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+            }
+        }
+
+        function endGame(isWin, message) {
+            gameOver = true;
+            const overlay = document.getElementById('gameover-overlay');
+            const title = document.getElementById('gameover-title');
+            const scoreText = document.getElementById('gameover-score');
+
+            title.textContent = isWin ? "ПОБЕДА!" : "GAME OVER";
+            title.className = isWin ? "text-2xl text-green-500 mb-2 font-bold" : "text-2xl text-red-600 mb-2 font-bold animate-pulse";
+            scoreText.textContent = `${message} СЧЕТ: ${score}`;
+            overlay.classList.remove('hidden');
+        }
+
+        // --- Настройка Управления (Клавиатура & Сенсор) ---
+        function setupControls() {
+            // ПК Клавиатура
+            window.addEventListener('keydown', (e) => {
+                initAudio();
+                if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.up = true;
+                if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+                if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = true;
+                if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+                if (e.code === 'Space') keys.fire = true;
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.up = false;
+                if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+                if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = false;
+                if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+                if (e.code === 'Space') keys.fire = false;
+            });
+
+            // Сенсорное управление (Pointer Events c предотвращением жестков)
+            const bindTouch = (id, keyName) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+
+                const start = (e) => {
+                    e.preventDefault();
+                    initAudio();
+                    keys[keyName] = true;
+                    btn.classList.add('active');
+                };
+
+                const end = (e) => {
+                    e.preventDefault();
+                    keys[keyName] = false;
+                    btn.classList.remove('active');
+                };
+
+                btn.addEventListener('pointerdown', start);
+                btn.addEventListener('pointerup', end);
+                btn.addEventListener('pointercancel', end);
+                btn.addEventListener('pointerleave', end);
+            };
+
+            bindTouch('btn-up', 'up');
+            bindTouch('btn-down', 'down');
+            bindTouch('btn-left', 'left');
+            bindTouch('btn-right', 'right');
+            bindTouch('btn-fire', 'fire');
+        }
+
+        // --- Привязка Интерфейса И Слушателей Кликов ---
+        window.addEventListener('DOMContentLoaded', () => {
+            setupControls();
+
+            // Кнопка: Одиночная игра
+            document.getElementById('btn-single').onclick = () => {
+                initAudio();
+                gameMode = 1;
+                const mapIdx = parseInt(document.getElementById('map-select').value);
+                document.getElementById('menu-overlay').classList.add('hidden');
+                initGame(mapIdx);
+                requestAnimationFrame(gameLoop);
+            };
+
+            // Кнопка: Мультиплеер (Лобби)
+            document.getElementById('btn-multi').onclick = () => {
+                initAudio();
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('lobby-overlay').classList.remove('hidden');
+            };
+
+            // Кнопки Лобби
+            document.getElementById('btn-back-lobby').onclick = () => {
+                document.getElementById('lobby-overlay').classList.add('hidden');
+                document.getElementById('menu-overlay').classList.remove('hidden');
+            };
+
+            document.getElementById('btn-join-room').onclick = () => {
+                const code = document.getElementById('room-input').value.trim();
+                const status = document.getElementById('lobby-status');
+                if (!code) {
+                    status.textContent = "ВВЕДИТЕ КОД КОМНАТЫ!";
+                    return;
+                }
+                status.textContent = "ПОДКЛЮЧЕНИЕ К КОМНАТЕ " + code + "...";
+                setTimeout(() => {
+                    document.getElementById('lobby-overlay').classList.add('hidden');
+                    gameMode = 2;
+                    const mapIdx = parseInt(document.getElementById('map-select').value);
+                    initGame(mapIdx);
+                    requestAnimationFrame(gameLoop);
+                }, 800);
+            };
+
+            document.getElementById('btn-create-room').onclick = () => {
+                const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
+                document.getElementById('room-input').value = randomCode;
+                document.getElementById('lobby-status').textContent = "КОМНАТА СОЗДАНА: " + randomCode;
+            };
+
+            // Кнопка: Справка
+            document.getElementById('btn-help').onclick = () => {
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('help-overlay').classList.remove('hidden');
+            };
+
+            document.getElementById('btn-close-help').onclick = () => {
+                document.getElementById('help-overlay').classList.add('hidden');
+                document.getElementById('menu-overlay').classList.remove('hidden');
+            };
+
+            // Кнопка: Рестарт
+            document.getElementById('btn-restart').onclick = () => {
+                document.getElementById('gameover-overlay').classList.add('hidden');
+                document.getElementById('menu-overlay').classList.remove('hidden');
+            };
+        });
+    </script>
+</body>
+</html>
