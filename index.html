@@ -182,17 +182,14 @@
 <body>
 
 <div id="game-container">
-    <!-- UI Bar -->
     <div id="ui-bar">
         <span id="p1-lives">🟢 P1: ❤️x3</span>
         <span id="p2-lives" style="display:none;">🔵 P2: ❤️x3</span>
         <span id="score-val">Очки: 0</span>
     </div>
 
-    <!-- Canvas -->
     <canvas id="canvas" width="400" height="400"></canvas>
 
-    <!-- Touch Controls -->
     <div id="touch-controls">
         <div class="dpad">
             <div class="dbtn" id="btn-up">▲</div>
@@ -203,22 +200,18 @@
         <div id="btn-fire">ОГОНЬ</div>
     </div>
 
-    <!-- Main Menu -->
     <div id="main-menu" class="screen">
         <h1>ТАНЧИКИ 2D</h1>
         <label style="font-size: 12px; margin-bottom: 5px; color: #aaa;">Выберите карту:</label>
         <select id="map-select">
             <option value="0">Карта 1: Классика</option>
             <option value="1">Карта 2: Лабиринт</option>
-            <option value="2">Карта 3: Переправа</option>
-            <option value="3">Карта 4: Засада</option>
         </select>
         <button class="btn" id="btn-single">ОДИНОЧНАЯ ИГРА</button>
         <button class="btn btn-secondary" id="btn-multi">МУЛЬТИПЛЕЕР (ОНЛАЙН)</button>
         <div class="status-badge" id="net-status">🌐 Подключение к серверу...</div>
     </div>
 
-    <!-- Online Lobby Screen -->
     <div id="lobby-screen" class="screen hidden">
         <h1>МУЛЬТИПЛЕЕР</h1>
         <button class="btn" id="btn-create">СОЗДАТЬ КОМНАТУ</button>
@@ -228,16 +221,13 @@
         <button class="btn btn-danger" id="btn-back" style="margin-top: 20px;">НАЗАД</button>
     </div>
 
-    <!-- Room Wait Screen -->
     <div id="room-screen" class="screen hidden">
         <h2>КОМНАТА: <span id="display-room-code" style="color: #f1c40f;">----</span></h2>
         <p id="room-status-text" style="margin: 20px 0;">Ожидание второго игрока...</p>
-        <button class="btn" id="btn-ready" style="display:none;">ГОТОВ</button>
-        <button class="btn btn-secondary" id="btn-start" style="display:none;">СТАРТ ИГРЫ</button>
+        <button class="btn" id="btn-start" style="display:none;">СТАРТ ИГРЫ</button>
         <button class="btn btn-danger" id="btn-leave" style="margin-top: 20px;">ВЫЙТИ</button>
     </div>
 
-    <!-- Game Over Screen -->
     <div id="gameover-screen" class="screen hidden">
         <h1 id="gameover-title" style="color:#e74c3c;">ИГРА ОКОНЧЕНА</h1>
         <p id="gameover-score" style="margin-bottom: 20px; font-size: 18px;">Счет: 0</p>
@@ -246,7 +236,6 @@
 </div>
 
 <script>
-    // --- FIREBASE CONFIG (Public Anonymous DB) ---
     const firebaseConfig = {
         databaseURL: "https://tanks-2d-default-rtdb.firebaseio.com"
     };
@@ -261,14 +250,11 @@
         document.getElementById('net-status').style.color = '#e74c3c';
     }
 
-    // --- GAME CONSTANTS & MAPS ---
     const GRID_SIZE = 20;
     const CANVAS_SIZE = 400;
-    const TILE_SIZE = CANVAS_SIZE / GRID_SIZE; // 20px
+    const TILE_SIZE = CANVAS_SIZE / GRID_SIZE;
     
-    // Tile types: 0: Empty, 1: Brick, 2: Steel, 3: Water, 4: Forest, 9: Base (Eagle)
     const PRESET_MAPS = [
-        // Map 1: Classic
         [
             [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
             [0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,0],
@@ -291,7 +277,6 @@
             [0,0,0,0,0,0,0,1,9,9,9,1,0,0,0,0,0,0,0,0],
             [0,0,0,0,0,0,0,1,9,9,9,1,0,0,0,0,0,0,0,0]
         ],
-        // Map 2: Labyrinth
         [
             [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
             [0,2,2,2,2,2,2,2,2,0,0,2,2,2,2,2,2,2,2,0],
@@ -316,7 +301,6 @@
         ]
     ];
 
-    // --- SOUND SYNTHESIZER ---
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null;
     function playSound(type) {
@@ -326,7 +310,6 @@
             const gain = audioCtx.createGain();
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-
             if (type === 'shoot') {
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(300, audioCtx.currentTime);
@@ -345,7 +328,6 @@
         } catch(e){}
     }
 
-    // --- GAME VARIABLES ---
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     
@@ -360,25 +342,20 @@
     let bullets = [];
     let score = 0;
     let gameOver = false;
-
-    // Keys
     const keys = {};
 
-    // --- TANK & BULLET CLASSES ---
     class Tank {
         constructor(x, y, color, isBot = false, id = 0) {
             this.x = x;
             this.y = y;
             this.size = TILE_SIZE * 0.9;
             this.speed = isBot ? 1.2 : 2.0;
-            this.dir = 'UP'; // UP, DOWN, LEFT, RIGHT
+            this.dir = 'UP';
             this.color = color;
             this.isBot = isBot;
             this.id = id;
             this.lives = isBot ? 1 : 3;
             this.cooldown = 0;
-            
-            // AI specific
             this.aiTimer = 0;
             this.targetDir = 'DOWN';
         }
@@ -392,19 +369,13 @@
             if (this.dir === 'RIGHT') angle = Math.PI/2;
             ctx.rotate(angle);
 
-            // Tank Body
             ctx.fillStyle = this.color;
             ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
-
-            // Tracks
             ctx.fillStyle = '#000';
             ctx.fillRect(-this.size/2, -this.size/2, 4, this.size);
             ctx.fillRect(this.size/2 - 4, -this.size/2, 4, this.size);
-
-            // Gun Barrel
             ctx.fillStyle = '#fff';
             ctx.fillRect(-2, -this.size/2 - 4, 4, this.size/2);
-
             ctx.restore();
         }
 
@@ -412,7 +383,6 @@
             this.dir = dir;
             let nextX = this.x;
             let nextY = this.y;
-
             if (dir === 'UP') nextY -= this.speed;
             if (dir === 'DOWN') nextY += this.speed;
             if (dir === 'LEFT') nextX -= this.speed;
@@ -438,17 +408,13 @@
 
         updateAI() {
             if (!this.isBot) return;
-
             this.aiTimer--;
             if (this.aiTimer <= 0) {
                 this.aiTimer = Math.floor(Math.random() * 40) + 20;
-                
-                // Smart Targeting: 60% Chance move towards Base or Player
                 if (Math.random() < 0.6) {
                     const target = players[0] || { x: 10 * TILE_SIZE, y: 18 * TILE_SIZE };
                     const dx = target.x - this.x;
                     const dy = target.y - this.y;
-
                     if (Math.abs(dx) > Math.abs(dy)) {
                         this.targetDir = dx > 0 ? 'RIGHT' : 'LEFT';
                     } else {
@@ -459,15 +425,11 @@
                     this.targetDir = dirs[Math.floor(Math.random() * dirs.length)];
                 }
             }
-
-            // Try to move, if stuck change dir immediately
             if (!this.move(this.targetDir)) {
                 const dirs = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
                 this.targetDir = dirs[Math.floor(Math.random() * dirs.length)];
                 this.aiTimer = 30;
             }
-
-            // Shoot randomly or on alignment
             if (Math.random() < 0.05) this.shoot();
         }
     }
@@ -490,53 +452,48 @@
             if (this.dir === 'LEFT') this.x -= this.speed;
             if (this.dir === 'RIGHT') this.x += this.speed;
 
-            // Map Bounds
             if (this.x < 0 || this.x > CANVAS_SIZE || this.y < 0 || this.y > CANVAS_SIZE) {
                 this.active = false;
                 return;
             }
 
-            // Tile Collision
             let col = Math.floor((this.x + this.size/2) / TILE_SIZE);
             let row = Math.floor((this.y + this.size/2) / TILE_SIZE);
 
             if (col >= 0 && col < GRID_SIZE && row >= 0 && row < GRID_SIZE) {
                 let tile = currentMap[row][col];
-                if (tile === 1) { // Brick
+                if (tile === 1) {
                     currentMap[row][col] = 0;
                     this.active = false;
                     playSound('explosion');
-                } else if (tile === 2) { // Steel
+                } else if (tile === 2) {
                     this.active = false;
-                } else if (tile === 9) { // Eagle (Base)
+                } else if (tile === 9) {
                     currentMap[row][col] = 0;
                     this.active = false;
                     endGame(false);
                 }
             }
 
-            // Tank Hit Detection
             if (this.active) {
                 if (this.isBot) {
-                    // Hit Players
                     players.forEach(p => {
-                        if (rectOverlap(this.x, this.y, this.size, this.size, p.x, p.y, p.size)) {
+                        if (p && p.lives > 0 && rectOverlap(this.x, this.y, this.size, this.size, p.x, p.y, p.size)) {
                             p.lives--;
                             this.active = false;
                             playSound('explosion');
-                            if (p.lives <= 0) endGame(false);
+                            if (p.lives <= 0 && (!isMultiplayer || (players[0].lives <= 0 && players[1].lives <= 0))) {
+                                endGame(false);
+                            }
                         }
                     });
                 } else {
-                    // Hit Bots
                     bots.forEach(b => {
                         if (rectOverlap(this.x, this.y, this.size, this.size, b.x, b.y, b.size)) {
                             b.lives--;
                             this.active = false;
                             playSound('explosion');
-                            if (b.lives <= 0) {
-                                score += 100;
-                            }
+                            if (b.lives <= 0) score += 100;
                         }
                     });
                 }
@@ -549,16 +506,12 @@
         }
     }
 
-    // --- HELPER FUNCTIONS ---
     function rectOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
         return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
     }
 
     function checkCollision(x, y, size, ignoreTank) {
-        // Bounds
         if (x < 0 || x + size > CANVAS_SIZE || y < 0 || y + size > CANVAS_SIZE) return true;
-
-        // Grid Blocks
         let minCol = Math.floor(x / TILE_SIZE);
         let maxCol = Math.floor((x + size - 1) / TILE_SIZE);
         let minRow = Math.floor(y / TILE_SIZE);
@@ -571,73 +524,64 @@
             }
         }
 
-        // Other Tanks Collision
-        const allTanks = [...players, ...bots];
+        const allTanks = [...players.filter(Boolean), ...bots];
         for (let t of allTanks) {
-            if (t === ignoreTank) continue;
+            if (t === ignoreTank || t.lives <= 0) continue;
             if (rectOverlap(x, y, size, size, t.x, t.y, t.size)) return true;
         }
-
         return false;
     }
 
-    // --- SAFE SPAWN SYSTEM (ZERO BLOCK SPAWN) ---
     function clearSpawnAreas() {
         const clearZone = (startC, startR, w, h) => {
             for (let r = startR; r < startR + h; r++) {
                 for (let c = startC; c < startC + w; c++) {
                     if (r >= 0 && r < GRID_SIZE && c >= 0 && c < GRID_SIZE) {
-                        if (currentMap[r][c] !== 9) currentMap[r][c] = 0; // Clear non-eagle blocks
+                        if (currentMap[r][c] !== 9) currentMap[r][c] = 0;
                     }
                 }
             }
         };
-
-        // P1 Spawn (Bottom Left)
         clearZone(5, 17, 3, 3);
-        // P2 Spawn (Bottom Right)
         clearZone(12, 17, 3, 3);
-        // Bot Spawns (Top)
         clearZone(1, 0, 3, 3);
         clearZone(9, 0, 3, 3);
         clearZone(16, 0, 3, 3);
     }
 
-    // --- GAME INITIALIZATION ---
-    function startGame(multiplayerMode = false) {
+    function initGameObjects(multiplayerMode) {
         isMultiplayer = multiplayerMode;
-        
-        // Load Map
-        const mapIdx = document.getElementById('map-select').value;
-        currentMap = JSON.parse(JSON.stringify(PRESET_MAPS[mapIdx || 0]));
-        clearSpawnAreas();
+        if (!isMultiplayer || isHost) {
+            const mapIdx = document.getElementById('map-select').value;
+            currentMap = JSON.parse(JSON.stringify(PRESET_MAPS[mapIdx || 0]));
+            clearSpawnAreas();
+        }
 
-        // Reset States
         score = 0;
         gameOver = false;
         bullets = [];
         bots = [];
         players = [];
 
-        // Spawn P1
-        players.push(new Tank(6 * TILE_SIZE, 18 * TILE_SIZE, '#2ecc71', false, 1));
+        players[0] = new Tank(6 * TILE_SIZE, 18 * TILE_SIZE, '#2ecc71', false, 1);
 
         if (isMultiplayer) {
             document.getElementById('p2-lives').style.display = 'inline';
-            players.push(new Tank(13 * TILE_SIZE, 18 * TILE_SIZE, '#3498db', false, 2));
+            players[1] = new Tank(13 * TILE_SIZE, 18 * TILE_SIZE, '#3498db', false, 2);
         } else {
             document.getElementById('p2-lives').style.display = 'none';
         }
 
-        // Spawn Initial Bots
-        spawnBot(2 * TILE_SIZE, 1 * TILE_SIZE);
-        spawnBot(10 * TILE_SIZE, 1 * TILE_SIZE);
-        spawnBot(17 * TILE_SIZE, 1 * TILE_SIZE);
+        if (!isMultiplayer || isHost) {
+            spawnBot(2 * TILE_SIZE, 1 * TILE_SIZE);
+            spawnBot(10 * TILE_SIZE, 1 * TILE_SIZE);
+            spawnBot(17 * TILE_SIZE, 1 * TILE_SIZE);
+        }
+    }
 
-        // Hide Screens
+    function startGame(multiplayerMode = false) {
+        initGameObjects(multiplayerMode);
         document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-
-        // Start Loop
         requestAnimationFrame(gameLoop);
     }
 
@@ -647,73 +591,132 @@
         }
     }
 
-    // --- MAIN GAME LOOP ---
     let lastBotSpawn = Date.now();
+    let remoteInput = { up: false, down: false, left: false, right: false, fire: false };
+
+    function setupHostListeners() {
+        if (roomRef) {
+            roomRef.child('p2Input').on('value', snap => {
+                if (snap.val()) remoteInput = snap.val();
+            });
+        }
+    }
+
+    function setupClientListeners() {
+        if (roomRef) {
+            roomRef.child('gameState').on('value', snap => {
+                const data = snap.val();
+                if (!data) return;
+                currentMap = data.map;
+                score = data.score;
+                if (players[0] && data.p1) {
+                    players[0].x = data.p1.x; players[0].y = data.p1.y; players[0].dir = data.p1.dir; players[0].lives = data.p1.lives;
+                }
+                if (players[1] && data.p2) {
+                    players[1].x = data.p2.x; players[1].y = data.p2.y; players[1].dir = data.p2.dir; players[1].lives = data.p2.lives;
+                }
+                bots = (data.bots || []).map(bData => {
+                    let b = new Tank(bData.x, bData.y, '#e74c3c', true, bData.id);
+                    b.dir = bData.dir;
+                    return b;
+                });
+                bullets = (data.bullets || []).map(bData => {
+                    let b = new Bullet(bData.x, bData.y, bData.dir, bData.isBot, 0);
+                    return b;
+                });
+            });
+        }
+    }
 
     function gameLoop() {
         if (gameOver) return;
 
-        // Clear Canvas
+        // --- HOST / SINGLEPLAYER LOGIC ---
+        if (!isMultiplayer || isHost) {
+            if (players[0] && players[0].lives > 0) {
+                players[0].cooldown--;
+                if (keys['ArrowUp'] || keys['KeyW']) players[0].move('UP');
+                else if (keys['ArrowDown'] || keys['KeyS']) players[0].move('DOWN');
+                else if (keys['ArrowLeft'] || keys['KeyA']) players[0].move('LEFT');
+                else if (keys['ArrowRight'] || keys['KeyD']) players[0].move('RIGHT');
+                if (keys['Space']) players[0].shoot();
+            }
+
+            if (isMultiplayer && players[1] && players[1].lives > 0) {
+                players[1].cooldown--;
+                if (remoteInput.up) players[1].move('UP');
+                else if (remoteInput.down) players[1].move('DOWN');
+                else if (remoteInput.left) players[1].move('LEFT');
+                else if (remoteInput.right) players[1].move('RIGHT');
+                if (remoteInput.fire) players[1].shoot();
+            }
+
+            bots.forEach(b => {
+                b.cooldown--;
+                b.updateAI();
+            });
+
+            if (Date.now() - lastBotSpawn > 5000 && bots.length < 4) {
+                const spawns = [2, 10, 17];
+                spawnBot(spawns[Math.floor(Math.random() * spawns.length)] * TILE_SIZE, 1 * TILE_SIZE);
+                lastBotSpawn = Date.now();
+            }
+
+            bots = bots.filter(b => b.lives > 0);
+            bullets.forEach(b => b.update());
+            bullets = bullets.filter(b => b.active);
+
+            if (isMultiplayer && roomRef) {
+                roomRef.child('gameState').set({
+                    map: currentMap,
+                    p1: players[0] ? { x: players[0].x, y: players[0].y, dir: players[0].dir, lives: players[0].lives } : null,
+                    p2: players[1] ? { x: players[1].x, y: players[1].y, dir: players[1].dir, lives: players[1].lives } : null,
+                    bots: bots.map(b => ({ x: b.x, y: b.y, dir: b.dir, id: b.id })),
+                    bullets: bullets.map(b => ({ x: b.x, y: b.y, dir: b.dir, isBot: b.isBot })),
+                    score: score
+                });
+            }
+        } else {
+            // --- CLIENT (PLAYER 2) LOGIC ---
+            if (roomRef) {
+                roomRef.child('p2Input').set({
+                    up: keys['ArrowUp'] || keys['KeyW'],
+                    down: keys['ArrowDown'] || keys['KeyS'],
+                    left: keys['ArrowLeft'] || keys['KeyA'],
+                    right: keys['ArrowRight'] || keys['KeyD'],
+                    fire: keys['Space']
+                });
+            }
+        }
+
+        // --- RENDER PASS ---
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-        // Render Map
         for (let r = 0; r < GRID_SIZE; r++) {
             for (let c = 0; c < GRID_SIZE; c++) {
                 let tile = currentMap[r][c];
                 let x = c * TILE_SIZE;
                 let y = r * TILE_SIZE;
-
-                if (tile === 1) { // Brick
+                if (tile === 1) {
                     ctx.fillStyle = '#e67e22';
                     ctx.fillRect(x+1, y+1, TILE_SIZE-2, TILE_SIZE-2);
-                } else if (tile === 2) { // Steel
+                } else if (tile === 2) {
                     ctx.fillStyle = '#bdc3c7';
                     ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                } else if (tile === 3) { // Water
+                } else if (tile === 3) {
                     ctx.fillStyle = '#2980b9';
                     ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                } else if (tile === 9) { // Eagle (Base)
+                } else if (tile === 9) {
                     ctx.fillStyle = '#f1c40f';
                     ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                 }
             }
         }
 
-        // Update Local Player Controls
-        const myPlayer = isMultiplayer ? (isHost ? players[0] : players[1]) : players[0];
-        if (myPlayer) {
-            myPlayer.cooldown--;
-            if (keys['ArrowUp'] || keys['KeyW']) myPlayer.move('UP');
-            else if (keys['ArrowDown'] || keys['KeyS']) myPlayer.move('DOWN');
-            else if (keys['ArrowLeft'] || keys['KeyA']) myPlayer.move('LEFT');
-            else if (keys['ArrowRight'] || keys['KeyD']) myPlayer.move('RIGHT');
-
-            if (keys['Space']) myPlayer.shoot();
-        }
-
-        // Update & Render Players
-        players.forEach(p => p.draw());
-
-        // Update & Render Bots
-        if (!isMultiplayer || isHost) {
-            bots.forEach(b => {
-                b.cooldown--;
-                b.updateAI();
-            });
-
-            // Respawn Bots
-            if (Date.now() - lastBotSpawn > 5000 && bots.length < 4) {
-                const spawns = [2, 10, 17];
-                const spawnCol = spawns[Math.floor(Math.random() * spawns.length)];
-                spawnBot(spawnCol * TILE_SIZE, 1 * TILE_SIZE);
-                lastBotSpawn = Date.now();
-            }
-        }
-        bots = bots.filter(b => b.lives > 0);
+        players.forEach(p => { if (p && p.lives > 0) p.draw(); });
         bots.forEach(b => b.draw());
 
-        // Forest Overlay (Draw over tanks)
         for (let r = 0; r < GRID_SIZE; r++) {
             for (let c = 0; c < GRID_SIZE; c++) {
                 if (currentMap[r][c] === 4) {
@@ -723,22 +726,13 @@
             }
         }
 
-        // Update Bullets
-        bullets.forEach(b => b.update());
-        bullets = bullets.filter(b => b.active);
         bullets.forEach(b => b.draw());
 
-        // Update UI
         document.getElementById('p1-lives').innerText = `🟢 P1: ❤️x${players[0] ? players[0].lives : 0}`;
         if (players[1]) {
             document.getElementById('p2-lives').innerText = `🔵 P2: ❤️x${players[1].lives}`;
         }
         document.getElementById('score-val').innerText = `Очки: ${score}`;
-
-        // Sync Multiplayer Data
-        if (isMultiplayer && roomRef) {
-            syncNetworkData();
-        }
 
         requestAnimationFrame(gameLoop);
     }
@@ -751,60 +745,7 @@
         document.getElementById('gameover-screen').classList.remove('hidden');
     }
 
-    // --- MULTIPLAYER SYNC (FIREBASE) ---
-    function syncNetworkData() {
-        if (isHost) {
-            roomRef.child('gameState').set({
-                map: currentMap,
-                p1: { x: players[0].x, y: players[0].y, dir: players[0].dir, lives: players[0].lives },
-                bots: bots.map(b => ({ x: b.x, y: b.y, dir: b.dir, id: b.id })),
-                bullets: bullets.map(b => ({ x: b.x, y: b.y, dir: b.dir })),
-                score: score
-            });
-        } else {
-            if (players[1]) {
-                roomRef.child('p2Pos').set({ x: players[1].x, y: players[1].y, dir: players[1].dir });
-            }
-        }
-    }
-
-    function setupNetworkListeners() {
-        if (!roomRef) return;
-
-        if (!isHost) {
-            roomRef.child('gameState').on('value', snapshot => {
-                const data = snapshot.val();
-                if (!data) return;
-
-                currentMap = data.map;
-                score = data.score;
-                if (players[0]) {
-                    players[0].x = data.p1.x;
-                    players[0].y = data.p1.y;
-                    players[0].dir = data.p1.dir;
-                    players[0].lives = data.p1.lives;
-                }
-                
-                // Sync Bots
-                bots = data.bots.map(bData => {
-                    let b = new Tank(bData.x, bData.y, '#e74c3c', true, bData.id);
-                    b.dir = bData.dir;
-                    return b;
-                });
-            });
-        } else {
-            roomRef.child('p2Pos').on('value', snapshot => {
-                const data = snapshot.val();
-                if (data && players[1]) {
-                    players[1].x = data.x;
-                    players[1].y = data.y;
-                    players[1].dir = data.dir;
-                }
-            });
-        }
-    }
-
-    // --- UI EVENT HANDLERS ---
+    // --- UI HANDLERS ---
     document.getElementById('btn-single').onclick = () => startGame(false);
     
     document.getElementById('btn-multi').onclick = () => {
@@ -823,10 +764,7 @@
         isHost = true;
         roomRef = db.ref('rooms/' + roomCode);
 
-        roomRef.set({
-            status: 'waiting',
-            created: Date.now()
-        });
+        roomRef.set({ status: 'waiting', created: Date.now() });
 
         document.getElementById('display-room-code').innerText = roomCode;
         document.getElementById('room-status-text').innerText = 'Ожидание подключения второго игрока...';
@@ -860,7 +798,7 @@
 
                 roomRef.child('started').on('value', snap => {
                     if (snap.val() === true) {
-                        setupNetworkListeners();
+                        setupClientListeners();
                         startGame(true);
                     }
                 });
@@ -872,8 +810,8 @@
 
     document.getElementById('btn-start').onclick = () => {
         if (isHost && roomRef) {
+            setupHostListeners();
             roomRef.child('started').set(true);
-            setupNetworkListeners();
             startGame(true);
         }
     };
@@ -889,11 +827,9 @@
         document.getElementById('main-menu').classList.remove('hidden');
     };
 
-    // --- CONTROLS LISTENERS ---
     window.addEventListener('keydown', e => keys[e.code] = true);
     window.addEventListener('keyup', e => keys[e.code] = false);
 
-    // Touch Buttons
     const bindTouchBtn = (id, code) => {
         const btn = document.getElementById(id);
         btn.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[code] = true; btn.classList.add('active'); });
