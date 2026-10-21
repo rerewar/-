@@ -56,7 +56,6 @@
             aspect-ratio: 1 / 1;
             image-rendering: pixelated;
         }
-        /* Touch Controls */
         #touch-controls {
             width: 100%;
             flex: 1;
@@ -113,7 +112,6 @@
             background: #c0392b;
         }
 
-        /* Screens */
         .screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -631,7 +629,6 @@
     function gameLoop() {
         if (gameOver) return;
 
-        // --- HOST / SINGLEPLAYER LOGIC ---
         if (!isMultiplayer || isHost) {
             if (players[0] && players[0].lives > 0) {
                 players[0].cooldown--;
@@ -677,7 +674,6 @@
                 });
             }
         } else {
-            // --- CLIENT (PLAYER 2) LOGIC ---
             if (roomRef) {
                 roomRef.child('p2Input').set({
                     up: keys['ArrowUp'] || keys['KeyW'],
@@ -689,7 +685,6 @@
             }
         }
 
-        // --- RENDER PASS ---
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
@@ -740,12 +735,11 @@
     function endGame(win = false) {
         gameOver = true;
         document.getElementById('gameover-title').innerText = win ? 'ПОБЕДА!' : 'ИГРА ОКОНЧЕНА';
-        document.getElementById('gameover-title').style.color = win ? '#2ecc71' : '#e74c3c';
+        document.getElementById('gameover-title'].style.color = win ? '#2ecc71' : '#e74c3c';
         document.getElementById('gameover-score').innerText = `Итоговый счет: ${score}`;
         document.getElementById('gameover-screen').classList.remove('hidden');
     }
 
-    // --- UI HANDLERS ---
     document.getElementById('btn-single').onclick = () => startGame(false);
     
     document.getElementById('btn-multi').onclick = () => {
@@ -782,7 +776,10 @@
     document.getElementById('btn-join').onclick = () => {
         if (!db) { alert('Сервер недоступен!'); return; }
         const inputCode = document.getElementById('room-code-input').value.trim();
-        if (inputCode.length !== 4) { alert('Введите 4-значный код!'); return; }
+        if (inputCode.length !== 4) { 
+            alert('Введите корректный 4-значный код комнаты!'); 
+            return; 
+        }
 
         roomCode = inputCode;
         isHost = false;
@@ -803,8 +800,10 @@
                     }
                 });
             } else {
-                alert('Комната не найдена!');
+                alert('Комната с таким кодом не найдена! Проверьте правильность ввода.');
             }
+        }, error => {
+            alert('Ошибка подключения к базе данных. Проверьте правила Firebase Rules.');
         });
     };
 
